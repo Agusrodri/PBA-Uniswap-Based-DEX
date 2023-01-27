@@ -1,5 +1,6 @@
 use crate as pallet_dex;
 use frame_support::{
+	PalletId,
 	parameter_types,
 	traits::{AsEnsureOriginWithArg, ConstU128, ConstU16, ConstU32, ConstU64},
 };
@@ -25,7 +26,7 @@ frame_support::construct_runtime!(
 		System: frame_system,
 		Balances: pallet_balances,
 		Assets: pallet_assets,
-		Dex: pallet_dex,
+		Dex: pallet_dex::{Pallet, Call, Storage, Event<T>},
 	}
 );
 
@@ -78,14 +79,15 @@ parameter_types! {
 	pub const StringLimit: u32 = 50;
 	pub const MetadataDepositBase: Balance = 10;
 	pub const MetadataDepositPerByte: Balance = 1;
+	pub const PalletIdentification: PalletId = PalletId(*b"palle/*t");
 }
 
 impl pallet_assets::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Balance = u128;
+	type Currency = Balances;
 	type AssetId = u32;
 	type AssetIdParameter = codec::Compact<u32>;
-	type Currency = Balances;
 	type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<Self::AccountId>>;
 	type ForceOrigin = EnsureRoot<Self::AccountId>;
 	type AssetDeposit = AssetDeposit;
@@ -104,6 +106,9 @@ impl pallet_dex::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type Fungibles = Assets;
+	type AssetId = u32;
+	type AssetBalance = u128;
+	type PalletId = PalletIdentification;
 }
 
 // Build genesis storage according to the mock runtime.
