@@ -1,5 +1,11 @@
 use crate::{mock::*, Error, Event, PoolsMap};
-use frame_support::{assert_noop, assert_ok, traits::{fungibles::{self, *}, Currency}};
+use frame_support::{
+	assert_noop, assert_ok,
+	traits::{
+		fungibles::{self, *},
+		Currency,
+	},
+};
 
 /* #[test]
 fn it_works_for_default_value() {
@@ -23,19 +29,19 @@ fn correct_error_for_none_value() {
 	});
 } */
 
-#[test]
+/* #[test]
 fn test_create_asset() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Dex::create_asset(RuntimeOrigin::signed(1), 1));
 		// assert asset exists
 		assert!(<<Test as crate::Config>::Fungibles as fungibles::Inspect<_>>::asset_exists(1));
 	});
-}
+} */
 
 #[test]
 #[allow(unused_must_use)]
 fn create_pool_successfull() {
-    new_test_ext().execute_with(|| {
+	new_test_ext().execute_with(|| {
 		let asset_id = 3u32;
 		let liquidity_asset_id = 2u32;
 		let account_id = 1u64;
@@ -46,21 +52,25 @@ fn create_pool_successfull() {
 		//transfer currency to the sender
 		<Test as crate::Config>::Currency::deposit_creating(&account_id, 100u128);
 
-		//create an asset 
+		//create an asset
 		assert_ok!(Dex::create_asset_helper(asset_id));
 
 		//mint asset to user
-		assert!(<Test as crate::Config>::Fungibles::mint_into(asset_id, &account_id, 100u128).is_ok());
+		assert!(
+			<Test as crate::Config>::Fungibles::mint_into(asset_id, &account_id, 100u128).is_ok()
+		);
 
 		//create a pool and add liquidity to it
 		assert_ok!(Dex::create_pool(sender, asset_id, liquidity_asset_id, 50u128, 50u128));
-    })
+
+		//read the pool and check values
+	})
 }
 
 #[test]
-#[allow(unused_must_use)]
+//#[allow(unused_must_use)]
 fn create_pool_fails_existing_pool() {
-    new_test_ext().execute_with(|| {
+	new_test_ext().execute_with(|| {
 		let asset_id = 3u32;
 		let liquidity_asset_id = 2u32;
 		let second_liquidity_asset_id = 5u32;
@@ -70,26 +80,31 @@ fn create_pool_fails_existing_pool() {
 		let sender = RuntimeOrigin::signed(account_id);
 
 		//transfer currency to the sender
-		<Test as crate::Config>::Currency::deposit_creating(&account_id, 100u128);
+		let _ = <Test as crate::Config>::Currency::deposit_creating(&account_id, 100u128);
 
-		//create an asset 
+		//create an asset
 		assert_ok!(Dex::create_asset_helper(asset_id));
 
 		//mint asset to user
-		assert!(<Test as crate::Config>::Fungibles::mint_into(asset_id, &account_id, 100u128).is_ok());
+		assert!(
+			<Test as crate::Config>::Fungibles::mint_into(asset_id, &account_id, 100u128).is_ok()
+		);
 
 		//create a pool and add liquidity to it
 		assert_ok!(Dex::create_pool(sender.clone(), asset_id, liquidity_asset_id, 50u128, 50u128));
 
 		//try to create another pool with the same asset_id
-		assert_noop!(Dex::create_pool(sender, asset_id, second_liquidity_asset_id, 10u128, 10u128), Error::<Test>::PoolAlreadyExists);
-    })
+		assert_noop!(
+			Dex::create_pool(sender, asset_id, second_liquidity_asset_id, 10u128, 10u128),
+			Error::<Test>::PoolAlreadyExists
+		);
+	})
 }
 
 #[test]
 #[allow(unused_must_use)]
 fn create_pool_fails_existing_liq_asset() {
-    new_test_ext().execute_with(|| {
+	new_test_ext().execute_with(|| {
 		let asset_id = 3u32;
 		let liquidity_asset_id = 2u32;
 		let second_asset_id = 5u32;
@@ -101,23 +116,28 @@ fn create_pool_fails_existing_liq_asset() {
 		//transfer currency to the sender
 		<Test as crate::Config>::Currency::deposit_creating(&account_id, 100u128);
 
-		//create an asset 
+		//create an asset
 		assert_ok!(Dex::create_asset_helper(asset_id));
 
 		//mint asset to user
-		assert!(<Test as crate::Config>::Fungibles::mint_into(asset_id, &account_id, 100u128).is_ok());
+		assert!(
+			<Test as crate::Config>::Fungibles::mint_into(asset_id, &account_id, 100u128).is_ok()
+		);
 
 		//create a pool and add liquidity to it
 		assert_ok!(Dex::create_pool(sender.clone(), asset_id, liquidity_asset_id, 50u128, 50u128));
 
 		//try to create another pool with the same liquidity_asset_id
-		assert_noop!(Dex::create_pool(sender, second_asset_id, liquidity_asset_id, 10u128, 10u128), Error::<Test>::AssetAlreadyExists);
-    })
+		assert_noop!(
+			Dex::create_pool(sender, second_asset_id, liquidity_asset_id, 10u128, 10u128),
+			Error::<Test>::AssetAlreadyExists
+		);
+	})
 }
 
 #[test]
 fn create_pool_fails_asset_not_found() {
-    new_test_ext().execute_with(|| {
+	new_test_ext().execute_with(|| {
 		let asset_id = 3u32;
 		let liquidity_asset_id = 2u32;
 		let account_id = 1u64;
@@ -126,14 +146,17 @@ fn create_pool_fails_asset_not_found() {
 		let sender = RuntimeOrigin::signed(account_id);
 
 		//fails to create a pool with an unexisting asset
-		assert_noop!(Dex::create_pool(sender.clone(), asset_id, liquidity_asset_id, 50u128, 50u128), Error::<Test>::AssetNotFound);
-    })
+		assert_noop!(
+			Dex::create_pool(sender.clone(), asset_id, liquidity_asset_id, 50u128, 50u128),
+			Error::<Test>::AssetNotFound
+		);
+	})
 }
 
 #[test]
 #[allow(unused_must_use)]
 fn create_pool_fails_asset_amount_zero() {
-    new_test_ext().execute_with(|| {
+	new_test_ext().execute_with(|| {
 		let asset_id = 3u32;
 		let liquidity_asset_id = 2u32;
 		let account_id = 1u64;
@@ -144,13 +167,20 @@ fn create_pool_fails_asset_amount_zero() {
 		//transfer currency to the sender
 		<Test as crate::Config>::Currency::deposit_creating(&account_id, 100u128);
 
-		//create an asset 
+		//create an asset
 		assert_ok!(Dex::create_asset_helper(asset_id));
 
 		//mint asset to user
-		assert!(<Test as crate::Config>::Fungibles::mint_into(asset_id, &account_id, 100u128).is_ok());
+		assert!(
+			<Test as crate::Config>::Fungibles::mint_into(asset_id, &account_id, 100u128).is_ok()
+		);
 
 		//fails to create a pool because of the zero asset amount
-		assert_noop!(Dex::create_pool(sender, asset_id, liquidity_asset_id, 50u128, 0u128), Error::<Test>::AssetAmountZero);
-    })
+		assert_noop!(
+			Dex::create_pool(sender, asset_id, liquidity_asset_id, 50u128, 0u128),
+			Error::<Test>::AssetAmountZero
+		);
+	})
 }
+
+//add test to create a pool with a currency amount of zero

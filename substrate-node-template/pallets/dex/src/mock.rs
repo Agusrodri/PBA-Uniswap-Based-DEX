@@ -1,8 +1,8 @@
 use crate as pallet_dex;
 use frame_support::{
-	PalletId,
 	parameter_types,
 	traits::{AsEnsureOriginWithArg, ConstU128, ConstU16, ConstU32, ConstU64},
+	PalletId,
 };
 use frame_system::{EnsureRoot, EnsureSigned};
 use sp_core::H256;
@@ -80,6 +80,8 @@ parameter_types! {
 	pub const MetadataDepositBase: Balance = 10;
 	pub const MetadataDepositPerByte: Balance = 1;
 	pub const PalletIdentification: PalletId = PalletId(*b"palle/*t");
+	pub const FeeConst: Balance = 3;
+	pub const ThousandConst: Balance = 1000;
 }
 
 impl pallet_assets::Config for Test {
@@ -109,6 +111,8 @@ impl pallet_dex::Config for Test {
 	type AssetId = u32;
 	type AssetBalance = u128;
 	type PalletId = PalletIdentification;
+	type Fee = FeeConst;
+	type Thousand = ThousandConst;
 }
 
 // Build genesis storage according to the mock runtime.
