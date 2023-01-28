@@ -42,7 +42,7 @@ pub use frame_support::{
 		},
 		IdentityFee, Weight,
 	},
-	StorageValue,
+	PalletId, StorageValue,
 };
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
@@ -283,6 +283,9 @@ parameter_types! {
 	pub const StringLimit: u32 = 50;
 	pub const MetadataDepositBase: Balance = 10;
 	pub const MetadataDepositPerByte: Balance = 1;
+	pub const PalletIdentification: PalletId = PalletId(*b"palle/*t");
+	pub const FeeConst: Balance = 3;
+	pub const ThousandConst: Balance = 1000;
 }
 
 impl pallet_assets::Config for Runtime {
@@ -307,11 +310,11 @@ impl pallet_assets::Config for Runtime {
 	type BenchmarkHelper = ();
 }
 
-/// Configure the pallet-voting in pallets/voting.
+/* /// Configure the pallet-voting in pallets/voting.
 impl pallet_voting::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-}
+} */
 
 pub struct AuthorityToAccount;
 
@@ -324,18 +327,23 @@ impl Convert<AuraId, AccountId> for AuthorityToAccount {
 	}
 }
 
-/// Configure the pallet-dpos in pallets/dpos.
+/* /// Configure the pallet-dpos in pallets/dpos.
 impl pallet_dpos::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type AuthorityToAccount = AuthorityToAccount;
 	type Currency = Balances;
 }
-
+ */
 /// Configure the pallet-dex in pallets/dex.
 impl pallet_dex::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type Fungibles = Assets;
+	type AssetId = u32;
+	type AssetBalance = u128;
+	type PalletId = PalletIdentification;
+	type Fee = FeeConst;
+	type Thousand = ThousandConst;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -356,8 +364,8 @@ construct_runtime!(
 		Sudo: pallet_sudo,
 		Assets: pallet_assets,
 		Dex: pallet_dex,
-		Dpos: pallet_dpos,
-		Voting: pallet_voting,
+		//Dpos: pallet_dpos,
+		//Voting: pallet_voting,
 	}
 );
 
@@ -405,8 +413,8 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_dex, Dex]
-		[pallet_dpos, Dpos]
-		[pallet_voting, Voting]
+		//[pallet_dpos, Dpos]
+		//[pallet_voting, Voting]
 
 	);
 }

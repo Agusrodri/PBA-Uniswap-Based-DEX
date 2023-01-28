@@ -26,7 +26,7 @@ frame_support::construct_runtime!(
 		System: frame_system,
 		Balances: pallet_balances,
 		Assets: pallet_assets,
-		Dex: pallet_dex::{Pallet, Call, Storage, Event<T>},
+		Dex: pallet_dex//::{Pallet, Call, Storage, Event<T>},
 	}
 );
 
