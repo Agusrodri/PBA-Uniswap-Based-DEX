@@ -1,8 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-/// Edit this file to define custom logic or remove it if it is not needed.
-/// Learn more about FRAME and the core library of Substrate FRAME pallets:
-/// <https://docs.substrate.io/reference/frame-pallets/>
 pub use pallet::*;
 
 #[cfg(test)]
@@ -27,7 +24,6 @@ pub mod pallet {
 			},
 			FixedPointOperand,
 		},
-		storage::unhashed::get,
 		traits::{
 			fungibles::{self, *},
 			tokens::Balance,
@@ -140,18 +136,48 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Event documentation should end with an array that provides descriptive names for event
-		/// parameters. [something, who]
-		SomethingStored {
-			something: u32,
-			who: T::AccountId,
+		PoolCreated {
+			asset_id: AssetIdOf<T>,
+			liquidity_asset_id: AssetIdOf<T>,
 		},
 
-		PoolCreated(AssetIdOf<T>, AssetIdOf<T>),
+		AddedLiquidity {
+			provider: T::AccountId,
+			asset_id: AssetIdOf<T>,
+			currency_amount: BalanceOf<T>,
+			asset_amount: BalanceOf<T>,
+			liquidity_minted: BalanceOf<T>,
+		},
 
-		AddedLiquidity(T::AccountId, AssetIdOf<T>, BalanceOf<T>, BalanceOf<T>, BalanceOf<T>),
+		RemovedLiquidity {
+			provider: T::AccountId,
+			asset_id: AssetIdOf<T>,
+			currency_amount: BalanceOf<T>,
+			asset_amount: BalanceOf<T>,
+			liquidity_amount: BalanceOf<T>,
+		},
 
-		RemovedLiquidity(T::AccountId, AssetIdOf<T>, BalanceOf<T>, BalanceOf<T>, BalanceOf<T>),
+		CurrencyToAsset {
+			sender: T::AccountId,
+			asset_id: AssetIdOf<T>,
+			currency_amount: BalanceOf<T>,
+			asset_amount: BalanceOf<T>,
+		},
+
+		AssetToCurrency {
+			sender: T::AccountId,
+			asset_id: AssetIdOf<T>,
+			asset_amount: BalanceOf<T>,
+			currency_amount: BalanceOf<T>,
+		},
+
+		AssetToAsset {
+			sender: T::AccountId,
+			asset_id_from: AssetIdOf<T>,
+			asset_id_to: AssetIdOf<T>,
+			asset_amount: BalanceOf<T>,
+			asset_amount_received: BalanceOf<T>,
+		},
 	}
 
 	//pallet errors
@@ -161,32 +187,38 @@ pub mod pallet {
 
 		StorageOverflow,
 
+		//asset not found for the requested asset_id
 		AssetNotFound,
 
+		//liquidity_asset_id already exists
 		AssetLiquidityIDTaken,
 
+		//a pool with the requested asset_id is already created
 		PoolAlreadyExists,
 
+		//asset input amount cannot be zero
 		AssetAmountZero,
 
-		BalanceTooLow,
-
+		//asset_id requested to be created already exists
 		AssetAlreadyExists,
 
+		//pool with the requested asset_id not found
 		PoolNotFound,
 
+		//not enough fungible asset balance
 		InsufficientAssetBalance,
 
+		//not enough currency balance
 		InsufficientCurrencyBalance,
 
+		//currency amount input equal to zero
 		CurrencyAmountZero,
 
-		DivisionFailed,
-
-		MultiplicationFailed,
-
+		//the requested liquidity_asset amount to withdraw is zero
 		LiqAmountZero,
 
+		//this error occurs when a check_add, checked_sub, checked_mul or
+		//checked_div operation results in an overflow
 		OperationOverflow,
 	}
 
@@ -256,7 +288,7 @@ pub mod pallet {
 				sender,
 			)?;
 
-			Self::deposit_event(Event::PoolCreated(asset_id, liquidity_asset_id));
+			Self::deposit_event(Event::PoolCreated { asset_id, liquidity_asset_id });
 
 			Ok(())
 		}
@@ -299,14 +331,16 @@ pub mod pallet {
 
 			let currency_div_currency_reserve = currency_amount
 				.checked_div(&pool_currency_reserve)
-				.ok_or(Error::<T>::DivisionFailed)?;
+				.ok_or(Error::<T>::OperationOverflow)?;
 			let asset_amount = currency_div_currency_reserve
 				.checked_mul(&pool.asset_reserve.clone())
-				.ok_or(Error::<T>::MultiplicationFailed)?;
+				.ok_or(Error::<T>::OperationOverflow)?
+				.checked_add(&One::one())
+				.ok_or(Error::<T>::OperationOverflow)?;
 
 			let liquidity_to_mint = currency_div_currency_reserve
 				.checked_mul(&asset_total_issuance)
-				.ok_or(Error::<T>::MultiplicationFailed)?;
+				.ok_or(Error::<T>::OperationOverflow)?;
 
 			//TODO: verify that the user's asset balance is higher than asset amount calculated
 			// previously
@@ -340,29 +374,30 @@ pub mod pallet {
 			let pool = <PoolsMap<T>>::get(asset_id.clone()).ok_or(Error::<T>::PoolNotFound)?;
 
 			//verify that sender has enough liquidity assets
+			//todo: remove
 			ensure!(
 				!(T::Fungibles::balance(pool.liquidity_asset_id.clone(), &sender)
 					.ge(&liquidity_amount)),
 				Error::<T>::InsufficientAssetBalance
 			);
 
-			//get the total issuance of liquidity token from the pool
+			//get the total issuance of liquidity asset from the pool
 			let asset_total_issuance =
 				T::Fungibles::total_issuance(pool.liquidity_asset_id.clone());
 
 			//perform the calculation of the asset amount and currency amount to withdraw
 			let liquidity_amount_div = liquidity_amount
 				.checked_div(&asset_total_issuance)
-				.ok_or(Error::<T>::DivisionFailed)?;
+				.ok_or(Error::<T>::OperationOverflow)?;
 
 			let currency_amount = liquidity_amount_div
 				.checked_mul(&pool.currency_reserve.clone())
-				.ok_or(Error::<T>::MultiplicationFailed)?;
+				.ok_or(Error::<T>::OperationOverflow)?;
 
 			//final asset amount to withdraw from the pool
 			let asset_amount = liquidity_amount_div
 				.checked_mul(&pool.asset_reserve.clone())
-				.ok_or(Error::<T>::MultiplicationFailed)?;
+				.ok_or(Error::<T>::OperationOverflow)?;
 
 			//call remove liquidity helper
 			Self::remove_liquidity_helper(
@@ -397,9 +432,6 @@ pub mod pallet {
 			//verify the pool exists
 			let pool = <PoolsMap<T>>::get(asset_id.clone()).ok_or(Error::<T>::PoolNotFound)?;
 
-			//TODO?: verify the pool has enough assets
-			//TODO: how do we manage fees? Are they already included in the helper?
-
 			//verify the currency amount is not zero
 			ensure!(!currency_amount.is_zero(), Error::<T>::CurrencyAmountZero);
 
@@ -410,7 +442,14 @@ pub mod pallet {
 				pool.asset_reserve.clone(),
 			)?;
 
-			//TODO: transfer currency from sender to pallet
+			//verify the pool has enough assets
+			//TODO: verify if this is necessary
+			ensure!(
+				pool.asset_reserve.clone().gt(&asset_amount),
+				Error::<T>::InsufficientAssetBalance
+			);
+
+			//transfer currency from sender to pallet
 			T::Currency::transfer(
 				&sender,
 				&pallet_account,
@@ -418,14 +457,29 @@ pub mod pallet {
 				ExistenceRequirement::KeepAlive,
 			)?;
 
-			//TODO: transfer assets from pallet to sender
+			//transfer assets from pallet to sender
 			T::Fungibles::transfer(
 				asset_id.clone(),
 				&pallet_account,
 				&sender,
-				asset_amount,
+				asset_amount.clone(),
 				true,
 			)?;
+
+			//update pool's reserves
+			pool.currency_reserve.checked_add(&currency_amount);
+			pool.asset_reserve.checked_sub(&asset_amount);
+
+			//update pool in storage
+			<PoolsMap<T>>::insert(asset_id.clone(), pool);
+
+			//TODO: modify event
+			Self::deposit_event(Event::CurrencyToAsset {
+				sender,
+				asset_id,
+				currency_amount,
+				asset_amount,
+			});
 
 			Ok(())
 		}
@@ -436,16 +490,153 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			asset_amount: BalanceOf<T>,
 			asset_id: AssetIdOf<T>,
-		) -> DispatchResult{
-
+		) -> DispatchResult {
 			//verify origin signature
 			let sender = ensure_signed(origin)?;
+			let pallet_account = Self::account_id();
 
+			//verify the asset exists
+			ensure!((T::Fungibles::asset_exists(asset_id.clone())), Error::<T>::AssetNotFound);
 
+			//verify the pool exists
+			let pool = <PoolsMap<T>>::get(asset_id.clone()).ok_or(Error::<T>::PoolNotFound)?;
 
+			//verify the asset amount is not zero
+			ensure!(!asset_amount.is_zero(), Error::<T>::AssetAmountZero);
+
+			//call convert helper function
+			let currency_amount = Self::get_input_convert(
+				asset_amount,
+				pool.asset_reserve.clone(),
+				pool.currency_reserve.clone(),
+			)?;
+
+			//verify the pool has enough currency
+			//TODO: check if it is necessary
+			ensure!(
+				pool.currency_reserve.clone().gt(&currency_amount),
+				Error::<T>::InsufficientCurrencyBalance
+			);
+
+			//transfer assets from sender to pallet
+			T::Fungibles::transfer(
+				asset_id.clone(),
+				&sender,
+				&pallet_account,
+				asset_amount.clone(),
+				true,
+			)?;
+
+			//transfer currency from pallet to sender
+			T::Currency::transfer(
+				&pallet_account,
+				&sender,
+				currency_amount,
+				ExistenceRequirement::KeepAlive,
+			)?;
+
+			//update pool's reserves
+			pool.currency_reserve.checked_sub(&currency_amount);
+			pool.asset_reserve.checked_add(&asset_amount);
+
+			//update pool in storage
+			<PoolsMap<T>>::insert(asset_id.clone(), pool);
+
+			Self::deposit_event(Event::AssetToCurrency {
+				sender,
+				asset_id,
+				asset_amount,
+				currency_amount,
+			});
 
 			Ok(())
+		}
 
+		#[pallet::call_index(5)]
+		#[pallet::weight(0)]
+		pub fn asset_to_asset(
+			origin: OriginFor<T>,
+			asset_id_from: AssetIdOf<T>,
+			asset_id_to: AssetIdOf<T>,
+			asset_amount: BalanceOf<T>,
+		) -> DispatchResult {
+			//verify origin signature
+			let sender = ensure_signed(origin)?;
+			let pallet_account = Self::account_id();
+
+			//verify the asset from exists
+			ensure!((T::Fungibles::asset_exists(asset_id_from.clone())), Error::<T>::AssetNotFound);
+
+			//verify the asset to exists
+			ensure!((T::Fungibles::asset_exists(asset_id_to.clone())), Error::<T>::AssetNotFound);
+
+			//verify the pool of asset from exists
+			let pool_from =
+				<PoolsMap<T>>::get(asset_id_from.clone()).ok_or(Error::<T>::PoolNotFound)?;
+
+			//verify the pool of asset to exists
+			let pool_to =
+				<PoolsMap<T>>::get(asset_id_to.clone()).ok_or(Error::<T>::PoolNotFound)?;
+
+			//verify the asset amount is not zero
+			ensure!(!asset_amount.is_zero(), Error::<T>::AssetAmountZero);
+
+			//first convert to currency
+			let currency_amount = Self::get_input_convert(
+				asset_amount.clone(),
+				pool_from.asset_reserve.clone(),
+				pool_from.currency_reserve.clone(),
+			)?;
+
+			//then convert from currency to asset
+			let asset_final_amount = Self::get_input_convert(
+				currency_amount,
+				pool_to.currency_reserve.clone(),
+				pool_to.asset_reserve.clone(),
+			)?;
+
+			//transfer asset_from from sender to pallet
+			T::Fungibles::transfer(
+				asset_id_from.clone(),
+				&sender,
+				&pallet_account,
+				asset_amount.clone(),
+				true,
+			)?;
+
+			//transfer asset_from from sender to pallet
+			T::Fungibles::transfer(
+				asset_id_to.clone(),
+				&pallet_account,
+				&sender,
+				asset_final_amount.clone(),
+				true,
+			)?;
+
+			//update pool_from reserves
+			pool_from.currency_reserve.checked_sub(&currency_amount);
+			pool_from.asset_reserve.checked_add(&asset_amount);
+
+			//update pool_from in storage
+			<PoolsMap<T>>::insert(asset_id_from.clone(), pool_from);
+
+			//update pool_to reserves
+			pool_to.currency_reserve.checked_add(&currency_amount);
+			pool_to.asset_reserve.checked_sub(&asset_amount);
+
+			//update pool_to in storage
+			<PoolsMap<T>>::insert(asset_id_to.clone(), pool_to);
+
+			//TODO: modify event
+			Self::deposit_event(Event::AssetToAsset {
+				sender,
+				asset_id_from,
+				asset_id_to,
+				asset_amount,
+				asset_amount_received: asset_final_amount,
+			});
+
+			Ok(())
 		}
 	}
 
@@ -456,11 +647,11 @@ pub mod pallet {
 		}
 
 		pub fn create_asset_helper(asset_id: AssetIdOf<T>) -> DispatchResult {
-			/* ensure!(
-				//exists
-				T::Fungibles::total_issuance(asset_id.clone()).is_zero(),
+			//verify the asset exists
+			ensure!(
+				!(T::Fungibles::asset_exists(asset_id.clone())),
 				Error::<T>::AssetAlreadyExists
-			); */
+			);
 			T::Fungibles::create(asset_id, Self::account_id(), false, <BalanceOf<T>>::one())?;
 			Ok(())
 		}
@@ -504,13 +695,13 @@ pub mod pallet {
 			//update pool in storage
 			<PoolsMap<T>>::insert(asset_id.clone(), pool);
 
-			Self::deposit_event(Event::AddedLiquidity(
+			Self::deposit_event(Event::AddedLiquidity {
 				provider,
 				asset_id,
 				currency_amount,
 				asset_amount,
 				liquidity_minted,
-			));
+			});
 
 			Ok(())
 		}
@@ -549,13 +740,13 @@ pub mod pallet {
 			//update pool in storage
 			<PoolsMap<T>>::insert(asset_id.clone(), pool);
 
-			Self::deposit_event(Event::RemovedLiquidity(
+			Self::deposit_event(Event::RemovedLiquidity {
 				provider,
 				asset_id,
 				currency_amount,
 				asset_amount,
 				liquidity_amount,
-			));
+			});
 
 			Ok(())
 		}
@@ -566,7 +757,8 @@ pub mod pallet {
 			output_reserve: BalanceOf<T>,
 		) -> Result<BalanceOf<T>, Error<T>> {
 			//(997 * ∆x * y) / (1000 * x + 997 * ∆x)
-			//asset_amount = ((Thousand - Fee) * ∆x * y) / ((Thousand - Fee) * x + (Thousand - Fee) * ∆x)
+			//asset_amount = ((Thousand - Fee) * ∆x * y) / ((Thousand - Fee) * x + (Thousand - Fee)
+			// * ∆x)
 
 			//∆x = currency_amount (input_amount)
 			//x = currency pool amount (input_reserve)
@@ -596,10 +788,10 @@ pub mod pallet {
 				mult_reserve.checked_add(&mult_amount).ok_or(Error::<T>::OperationOverflow)?;
 
 			//((Thousand - Fee) * ∆x * y) / ((Thousand - Fee) * x + (Thousand - Fee) * ∆x)
-			let final_amount =
-				numerator.checked_div(&denominator).ok_or(Error::<T>::OperationOverflow)?;
+			/* let final_amount =
+			numerator.checked_div(&denominator).ok_or(Error::<T>::OperationOverflow)?; */
 
-			Ok(final_amount)
+			Ok(numerator / denominator)
 		}
 	}
 }

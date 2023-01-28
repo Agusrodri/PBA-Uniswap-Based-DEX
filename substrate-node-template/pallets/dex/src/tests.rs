@@ -1,4 +1,4 @@
-use crate::{mock::*, Error, Event, PoolsMap};
+use crate::{mock::*, Error, Event, Pool, PoolsMap};
 use frame_support::{
 	assert_noop, assert_ok,
 	traits::{
@@ -39,7 +39,6 @@ fn test_create_asset() {
 } */
 
 #[test]
-#[allow(unused_must_use)]
 fn create_pool_successfull() {
 	new_test_ext().execute_with(|| {
 		let asset_id = 3u32;
@@ -50,7 +49,7 @@ fn create_pool_successfull() {
 		let sender = RuntimeOrigin::signed(account_id);
 
 		//transfer currency to the sender
-		<Test as crate::Config>::Currency::deposit_creating(&account_id, 100u128);
+		let _ = <Test as crate::Config>::Currency::deposit_creating(&account_id, 100u128);
 
 		//create an asset
 		assert_ok!(Dex::create_asset_helper(asset_id));
@@ -62,6 +61,10 @@ fn create_pool_successfull() {
 
 		//create a pool and add liquidity to it
 		assert_ok!(Dex::create_pool(sender, asset_id, liquidity_asset_id, 50u128, 50u128));
+
+		//verify the sender balances changed
+		assert_eq!(<Test as crate::Config>::Currency::free_balance(&account_id), 50u128);
+		assert_eq!(<Test as crate::Config>::Fungibles::balance(asset_id, &account_id), 50u128);
 
 		//read the pool and check values
 	})
@@ -102,7 +105,6 @@ fn create_pool_fails_existing_pool() {
 }
 
 #[test]
-#[allow(unused_must_use)]
 fn create_pool_fails_existing_liq_asset() {
 	new_test_ext().execute_with(|| {
 		let asset_id = 3u32;
@@ -114,7 +116,7 @@ fn create_pool_fails_existing_liq_asset() {
 		let sender = RuntimeOrigin::signed(account_id);
 
 		//transfer currency to the sender
-		<Test as crate::Config>::Currency::deposit_creating(&account_id, 100u128);
+		let _ = <Test as crate::Config>::Currency::deposit_creating(&account_id, 100u128);
 
 		//create an asset
 		assert_ok!(Dex::create_asset_helper(asset_id));
@@ -154,7 +156,6 @@ fn create_pool_fails_asset_not_found() {
 }
 
 #[test]
-#[allow(unused_must_use)]
 fn create_pool_fails_asset_amount_zero() {
 	new_test_ext().execute_with(|| {
 		let asset_id = 3u32;
@@ -165,7 +166,7 @@ fn create_pool_fails_asset_amount_zero() {
 		let sender = RuntimeOrigin::signed(account_id);
 
 		//transfer currency to the sender
-		<Test as crate::Config>::Currency::deposit_creating(&account_id, 100u128);
+		let _ = <Test as crate::Config>::Currency::deposit_creating(&account_id, 100u128);
 
 		//create an asset
 		assert_ok!(Dex::create_asset_helper(asset_id));
