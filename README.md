@@ -1,14 +1,3 @@
-1 - Introduction (Uniswap based dex)
-2 - Main terms
-3'- Rewards and fees in this dex project
-3 - General types (3 types)
-4 - Pallet config
-5 - Storage
-6 - Extrinsics: 
-	General description
-	Events
-	Errors
-7 - API oracle
 
 ## Assignment N°3 - Uniswap based DEX
 
