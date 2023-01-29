@@ -1,3 +1,14 @@
+1 - Introduction (Uniswap based dex)
+2 - Main terms
+3'- Rewards and fees in this dex project
+3 - General types (3 types)
+4 - Pallet config
+5 - Storage
+6 - Extrinsics: 
+	General description
+	Events
+	Errors
+7 - API oracle
 
 ## Assignment N°3 - Uniswap based DEX
 
@@ -5,7 +16,7 @@
 ### Introduction
 
 
-For this assignment, I decided to build a descentralized Uniswap v1 based exchange. Making use of this DEX, users have the possibility of `creating exchange pools` of type **Asset/Currency**, `adding liquidity` to an existing pool to get future rewards, `removing liquidity` from a pool they are liquidity providers, or just `swapping currency` to assets (or assets to currency and to other assets) as they like.
+For this assignment, I decided to build a descentralized Uniswap v1 based exchange. Making use of this DEX, users have the possibility of `creating exchange pools` of type **Asset-Currency**, `adding liquidity` to an existing pool to get future rewards, `removing liquidity` from a pool they are liquidity providers, or just `swapping currency` to assets (or assets to currency and to other assets) as they like.
 
 
 ### Main terminology
@@ -67,6 +78,9 @@ One asset_id can **only** have **one** pool associated to it.
 
 
 >**Note:** `AssetId` and `AssetBalance` are types defined within the pallet config itself. They are equivalent to `AssetIdOf<T>` and `BalanceOf<T>`. 
+
+### Genesis configuration
+In the GenesisConfig, only for `--dev` mode, four assets are created with asset_ids of `[1, 2, 3, 4]`, each one with **1000**`u128` initial amount. The pallet account is also initializated with **1000**`u128` amount of currency.
 
 ### Extrinsics
 
@@ -297,6 +311,21 @@ Allows users to swap an amount of a fungible asset for an amount of another fung
 
 * **OperationOverflow:** one of the math calculations resulted in an overflow.
 
+
+#### mint_asset() 
+>**`Only for testing purpose, should be removed in production`**
+
+Allows a user to mint an amount of an specific `asset_id`. This extrinsic is used to have some assets to interact with PolkadotJs without modifying the GenesisConfig for users to have balance. This extrinsic should be removed in production and then manage the asset minting in a better way.
+
+##### Parameters
+* **origin:** Caller´s acount id. The call must be signed.
+
+
+* **asset_id:** Id of the fungible asset to mint.
+
+
+* **asset_amount:** asset amount to mint.
+
 ### API Price Oracle
 Within the pallet, there is a **public** function called `price_oracle` that receives an `asset_id` as a parameter. This function calculate the common minimum between both reserves (currency and asset) of the pool associated to the `asset_id` indicated. Then, it divides each reserve amount by the minimum calculated previously, and returns the pair `(asset_amount, currency_amount)`. With this pair, is possible to see wich is the price comparing both quantities, for example (1 ETH/ 300 DOT).
 
@@ -314,7 +343,27 @@ pub struct OraclePrice<AssetId, AssetBalance> {
 To run all the test suites, make a `cd` to `/pba-assignment-3-Agusrodri/substrate-node-template` and run the command `cargo test -p pallet-dex`.
 
 ### Running the node and interacting with PolkadotJs
-To run the node, first make a `cd` to `/pba-assignment-3-Agusrodri/substrate-node-template` and run `cargo check -p node-template-runtime --release`. If there are no errors, run `cargo build --release`. When the build finishes, run `./target/release/node-template --dev`. After this, open PolkadotJs on your favourite browser and start swapping! 
+To run the node:
+* First make a `cd` to `/pba-assignment-3-Agusrodri/substrate-node-template`
+
+
+* Run `cargo check -p node-template-runtime --release`
+
+
+* If there are no errors, run `cargo build --release`
+
+
+* When the build finishes, run `./target/release/node-template --dev`
+
+
+* After these steps, open PolkadotJs on your favourite browser and start swapping! 
+
+
+>**Note:** Before you start creating pools and swapping, ensure you minted some assets to your account with the `mint_asset()` extrinsic. Otherwise you will not be able to make any operation with the node.
+
+### Future improvements
+Personally, I really enjoyed developing this project. I think I could improve it by adding v2 Uniswap features to it, like providing the possibility of creating pools of type **Asset/Asset**. Also, I think that I could modularize the code for each part to be more reusable.
+
 
 
 

@@ -1,6 +1,6 @@
 use node_template_runtime::{
-	AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig, Signature, SudoConfig,
-	SystemConfig, DexConfig, WASM_BINARY,
+	AccountId, AuraConfig, BalancesConfig, DexConfig, GenesisConfig, GrandpaConfig, Signature,
+	SudoConfig, SystemConfig, WASM_BINARY,
 };
 use sc_service::ChainType;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
@@ -60,8 +60,8 @@ pub fn development_config() -> Result<ChainSpec, String> {
 					get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
 				],
 				true,
-				vec![1u32,2u32,3u32,4u32],
-				1000u128
+				vec![1u32, 2u32, 3u32, 4u32],
+				1000u128,
 			)
 		},
 		// Bootnodes
@@ -110,8 +110,8 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 					get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
 				],
 				true,
-				vec![1u32,2u32,3u32,4u32],
-				1000u128
+				vec![1u32, 2u32, 3u32, 4u32],
+				1000u128,
 			)
 		},
 		// Bootnodes
@@ -136,7 +136,7 @@ fn testnet_genesis(
 	endowed_accounts: Vec<AccountId>,
 	_enable_println: bool,
 	assets: Vec<u32>,
-	initial_amount: u128
+	initial_amount: u128,
 ) -> GenesisConfig {
 	GenesisConfig {
 		system: SystemConfig {
@@ -157,10 +157,7 @@ fn testnet_genesis(
 			// Assign network admin rights.
 			key: Some(root_key),
 		},
-		dex: DexConfig {
-			assets,
-			initial_amount
-		},
+		dex: DexConfig { assets, initial_amount },
 		transaction_payment: Default::default(),
 		assets: Default::default(),
 	}

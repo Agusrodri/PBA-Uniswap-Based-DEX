@@ -109,37 +109,37 @@ pub mod pallet {
 	#[pallet::genesis_config]
 	pub struct GenesisConfig<T: Config> {
 		pub assets: Vec<AssetIdOf<T>>,
-		pub initial_amount: BalanceOf<T>
+		pub initial_amount: BalanceOf<T>,
 	}
 
 	#[cfg(feature = "std")]
 	impl<T: Config> Default for GenesisConfig<T> {
 		fn default() -> GenesisConfig<T> {
-			GenesisConfig { assets: vec![] , initial_amount: <BalanceOf<T>>::one()}
+			GenesisConfig { assets: vec![], initial_amount: <BalanceOf<T>>::one() }
 		}
 	}
 
 	#[pallet::genesis_build]
 	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
 		fn build(&self) {
-
 			for i in &self.assets {
+				//create genesis assets
 				assert!(
-                    T::Fungibles::create(
-                        i.clone(),
-                        T::PalletId::get().into_account_truncating(),
-                        false,
-                        self.initial_amount
-                    )
-                    .is_ok(),
-                    "Failed creating initial asset"
-                );
+					T::Fungibles::create(
+						i.clone(),
+						T::PalletId::get().into_account_truncating(),
+						false,
+						self.initial_amount
+					)
+					.is_ok(),
+					"Failed creating initial assets"
+				);
 			}
 
 			//deposit currency into pallet's account
 			T::Currency::deposit_creating(
 				&T::PalletId::get().into_account_truncating(),
-				self.initial_amount
+				self.initial_amount,
 			);
 		}
 	}
@@ -266,10 +266,7 @@ pub mod pallet {
 			);
 
 			//verify that the asset_id is created
-			ensure!(
-				T::Fungibles::asset_exists(asset_id.clone()),
-				Error::<T>::AssetNotFound
-			);
+			ensure!(T::Fungibles::asset_exists(asset_id.clone()), Error::<T>::AssetNotFound);
 
 			//verify that the asset_id does not have an asociate pool
 			ensure!(
@@ -420,10 +417,7 @@ pub mod pallet {
 			ensure!(!currency_amount.is_zero(), Error::<T>::CurrencyAmountZero);
 
 			//verify the asset exists
-			ensure!(
-				(T::Fungibles::asset_exists(asset_id.clone())),
-				Error::<T>::AssetNotFound
-			);
+			ensure!((T::Fungibles::asset_exists(asset_id.clone())), Error::<T>::AssetNotFound);
 
 			//verify the pool exists
 			let mut pool = <PoolsMap<T>>::get(asset_id.clone()).ok_or(Error::<T>::PoolNotFound)?;
@@ -487,14 +481,14 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			let pallet_account = Self::account_id();
 
+			//verify the asset amount is not zero
+			ensure!(!asset_amount.is_zero(), Error::<T>::AssetAmountZero);
+
 			//verify the asset exists
 			ensure!((T::Fungibles::asset_exists(asset_id.clone())), Error::<T>::AssetNotFound);
 
 			//verify the pool exists
 			let mut pool = <PoolsMap<T>>::get(asset_id.clone()).ok_or(Error::<T>::PoolNotFound)?;
-
-			//verify the asset amount is not zero
-			ensure!(!asset_amount.is_zero(), Error::<T>::AssetAmountZero);
 
 			//call convert helper function
 			let currency_amount = Self::get_input_convert(
@@ -555,6 +549,9 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			let pallet_account = Self::account_id();
 
+			//verify the asset amount is not zero
+			ensure!(!asset_amount.is_zero(), Error::<T>::AssetAmountZero);
+
 			//verify the asset from exists
 			ensure!((T::Fungibles::asset_exists(asset_id_from.clone())), Error::<T>::AssetNotFound);
 
@@ -568,9 +565,6 @@ pub mod pallet {
 			//verify the pool of asset to exists
 			let mut pool_to =
 				<PoolsMap<T>>::get(asset_id_to.clone()).ok_or(Error::<T>::PoolNotFound)?;
-
-			//verify the asset amount is not zero
-			ensure!(!asset_amount.is_zero(), Error::<T>::AssetAmountZero);
 
 			//first convert to currency
 			let currency_amount = Self::get_input_convert(
@@ -646,11 +640,12 @@ pub mod pallet {
 		pub fn mint_asset(
 			origin: OriginFor<T>,
 			asset_id: AssetIdOf<T>,
-			asset_amount: BalanceOf<T>
-		) ->DispatchResult{
-
+			asset_amount: BalanceOf<T>,
+		) -> DispatchResult {
+			//verify origin signature
 			let sender = ensure_signed(origin)?;
 
+			//mint funds into sender's account
 			T::Fungibles::mint_into(asset_id.clone(), &sender, asset_amount)?;
 
 			Ok(())
@@ -746,8 +741,10 @@ pub mod pallet {
 			let asset_id = pool.asset_id.clone();
 			let pallet_account = Self::account_id();
 
+			//burn liquidity assets
 			T::Fungibles::burn_from(pool.liquidity_asset_id.clone(), &provider, liquidity_amount)?;
 
+			//transfer currency from pallet to provider
 			<T as Config>::Currency::transfer(
 				&pallet_account,
 				&provider,
@@ -755,6 +752,7 @@ pub mod pallet {
 				ExistenceRequirement::AllowDeath,
 			)?;
 
+			//transfer asset from pallet to provider
 			T::Fungibles::transfer(
 				asset_id.clone(),
 				&pallet_account,
@@ -776,6 +774,7 @@ pub mod pallet {
 			//update pool in storage
 			<PoolsMap<T>>::insert(asset_id.clone(), pool);
 
+			//deposit event
 			Self::deposit_event(Event::LiquidityRemoved {
 				provider,
 				asset_id,
@@ -792,9 +791,10 @@ pub mod pallet {
 			input_reserve: BalanceOf<T>,
 			output_reserve: BalanceOf<T>,
 		) -> Result<BalanceOf<T>, Error<T>> {
-			//(997 * ∆x * y) / (1000 * x + 997 * ∆x)
-			//asset_amount = ((Thousand - Fee) * ∆x * y) / ((Thousand - Fee) * x + (Thousand - Fee)
-			// * ∆x)
+
+			//Thousand and Fee are constants used to represent the percentage fee
+			//The math function to calculate the asset_amount is:
+			//asset_amount = ((Thousand - Fee) * ∆x * y) / ((Thousand - Fee) * x + (Thousand - Fee) * ∆x)
 
 			//∆x = currency_amount (input_amount)
 			//x = currency pool amount (input_reserve)
@@ -824,26 +824,31 @@ pub mod pallet {
 				mult_reserve.checked_add(&mult_amount).ok_or(Error::<T>::OperationOverflow)?;
 
 			//((Thousand - Fee) * ∆x * y) / ((Thousand - Fee) * x + (Thousand - Fee) * ∆x)
-			/* let final_amount =
-			numerator.checked_div(&denominator).ok_or(Error::<T>::OperationOverflow)?; */
+			let final_amount =
+			numerator.checked_div(&denominator).ok_or(Error::<T>::OperationOverflow)?;
 
-			Ok(numerator / denominator)
+			Ok(final_amount)
 		}
 
 		pub fn price_oracle(
 			asset_id: AssetIdOf<T>,
 		) -> Result<OraclePrice<AssetIdOf<T>, BalanceOf<T>>, Error<T>> {
+
+			//get the pool associated to asset_id and extract reserves
 			let pool = <PoolsMap<T>>::get(asset_id.clone()).ok_or(Error::<T>::PoolNotFound)?;
 			let currency_amount = pool.currency_reserve.clone();
 			let asset_amount = pool.asset_reserve.clone();
 
+			//calculate the common minimum between both reserves 
 			let minimum = currency_amount.min(asset_amount);
 
+			//divide both reserves by the minimum
 			let currency_amount =
 				currency_amount.checked_div(&minimum).ok_or(Error::<T>::OperationOverflow)?;
 			let asset_amount =
 				asset_amount.checked_div(&minimum).ok_or(Error::<T>::OperationOverflow)?;
 
+			//build oracle response
 			let oracle = OraclePrice { asset_id, asset_amount, currency_amount };
 
 			Ok(oracle)

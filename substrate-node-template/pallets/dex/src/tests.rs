@@ -71,7 +71,7 @@ fn create_pool_successfully() {
 		//rcheck the new pool values are correct
 		let pool =
 			Pool { asset_id, liquidity_asset_id, asset_reserve: 50u128, currency_reserve: 50u128 };
-		
+
 		//compare both pools to check values
 		assert_eq!(Dex::pools(asset_id).unwrap_or_default(), pool);
 
@@ -520,7 +520,10 @@ fn currency_to_asset_fails_asset_not_found() {
 		let sender = RuntimeOrigin::signed(account_id);
 
 		//fails to swap currency for an non-existent asset
-		assert_noop!(Dex::currency_to_asset(sender, 20u128, asset_id), Error::<Test>::AssetNotFound);
+		assert_noop!(
+			Dex::currency_to_asset(sender, 20u128, asset_id),
+			Error::<Test>::AssetNotFound
+		);
 	})
 }
 
@@ -538,7 +541,7 @@ fn currency_to_asset_fails_pool_not_found() {
 		//create an asset
 		assert_ok!(Dex::create_asset_helper(asset_id));
 
-		//fails to swap currency for an non-existent asset
+		//fails to swap currency because the pool does not exist
 		assert_noop!(Dex::currency_to_asset(sender, 10u128, asset_id), Error::<Test>::PoolNotFound);
 	})
 }
@@ -554,9 +557,379 @@ fn currency_to_asset_fails_currency_amount_zero() {
 		//create a sender
 		let sender = RuntimeOrigin::signed(account_id);
 
-		//fails to swap currency for an non-existent asset
-		assert_noop!(Dex::currency_to_asset(sender, 0u128, asset_id), Error::<Test>::CurrencyAmountZero);
+		//fails to swap currency for a currency amount of zero
+		assert_noop!(
+			Dex::currency_to_asset(sender, 0u128, asset_id),
+			Error::<Test>::CurrencyAmountZero
+		);
 	})
 }
 
+#[test]
+fn asset_to_currency_successfully() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
 
+		let asset_id = 3u32;
+		let account_id = 1u64;
+		let liquidity_asset_id = 2u32;
+
+		//create a sender
+		let sender = RuntimeOrigin::signed(account_id);
+
+		//transfer currency to the sender
+		let _ = <Test as crate::Config>::Currency::deposit_creating(&account_id, 100u128);
+
+		//create an asset
+		assert_ok!(Dex::create_asset_helper(asset_id));
+
+		//mint asset to user
+		assert!(
+			<Test as crate::Config>::Fungibles::mint_into(asset_id, &account_id, 100u128).is_ok()
+		);
+
+		//create a pool and add liquidity to it
+		assert_ok!(Dex::create_pool(sender.clone(), asset_id, liquidity_asset_id, 50u128, 50u128));
+
+		//get the pool created previously
+		let pool = Dex::pools(asset_id).unwrap_or_default();
+
+		//calculate the asset amount to give to the sender based on the asset input amount
+		let curency_amount_to_check = Dex::get_input_convert(
+			20u128,
+			pool.asset_reserve.clone(),
+			pool.currency_reserve.clone(),
+		)
+		.unwrap_or_default();
+
+		//perform the asset to currency swap operation
+		assert_ok!(Dex::asset_to_currency(sender.clone(), 20u128, asset_id));
+
+		//verify new sender's asset balance
+		assert_eq!(
+			<Test as crate::Config>::Fungibles::balance(asset_id, &account_id),
+			50u128 - 20u128
+		);
+
+		//verify new sender's currency amount
+		assert_eq!(
+			<Test as crate::Config>::Currency::free_balance(&account_id),
+			50u128 + curency_amount_to_check
+		);
+
+		//verify new pallet's asset balance
+		assert_eq!(
+			<Test as crate::Config>::Fungibles::balance(asset_id, &Dex::account_id()),
+			50u128 + 20u128
+		);
+
+		//verify new pallet's currency balance
+		assert_eq!(
+			<Test as crate::Config>::Currency::free_balance(&Dex::account_id()),
+			50u128 - curency_amount_to_check
+		);
+
+		//check the last event
+		System::assert_last_event(
+			Event::AssetToCurrency {
+				sender: account_id,
+				asset_id,
+				asset_amount: 20u128,
+				currency_amount: curency_amount_to_check,
+			}
+			.into(),
+		);
+	})
+}
+
+#[test]
+fn asset_to_currency_fails_asset_not_found() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		let asset_id = 3u32;
+		let account_id = 1u64;
+
+		//create a sender
+		let sender = RuntimeOrigin::signed(account_id);
+
+		//fails to swap asset because the asset does not exist
+		assert_noop!(
+			Dex::asset_to_currency(sender, 20u128, asset_id),
+			Error::<Test>::AssetNotFound
+		);
+	})
+}
+
+#[test]
+fn asset_to_currency_fails_pool_not_found() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		let asset_id = 3u32;
+		let account_id = 1u64;
+
+		//create a sender
+		let sender = RuntimeOrigin::signed(account_id);
+
+		//create an asset
+		assert_ok!(Dex::create_asset_helper(asset_id));
+
+		//fails to swap asset because pool does not exist
+		assert_noop!(Dex::asset_to_currency(sender, 10u128, asset_id), Error::<Test>::PoolNotFound);
+	})
+}
+
+#[test]
+fn asset_to_currency_fails_asset_amount_zero() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		let asset_id = 3u32;
+		let account_id = 1u64;
+
+		//create a sender
+		let sender = RuntimeOrigin::signed(account_id);
+
+		//fails to swap asset for an asset amount of zero
+		assert_noop!(
+			Dex::asset_to_currency(sender, 0u128, asset_id),
+			Error::<Test>::AssetAmountZero
+		);
+	})
+}
+
+#[test]
+fn asset_to_asset_successfully() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		let asset_id_from = 3u32;
+		let asset_id_to = 5u32;
+		let account_id = 1u64;
+		let liquidity_asset_id_from = 2u32;
+		let liquidity_asset_id_to = 4u32;
+
+		//create a sender
+		let sender = RuntimeOrigin::signed(account_id);
+
+		//transfer currency to the sender
+		let _ = <Test as crate::Config>::Currency::deposit_creating(&account_id, 300u128);
+
+		//create the asset_from
+		assert_ok!(Dex::create_asset_helper(asset_id_from));
+
+		//create the asset_to
+		assert_ok!(Dex::create_asset_helper(asset_id_to));
+
+		//mint asset_from to user
+		assert!(<Test as crate::Config>::Fungibles::mint_into(asset_id_from, &account_id, 300u128)
+			.is_ok());
+
+		//mint asset_to to user
+		assert!(<Test as crate::Config>::Fungibles::mint_into(asset_id_to, &account_id, 300u128)
+			.is_ok());
+
+		//create pool_from
+		assert_ok!(Dex::create_pool(
+			sender.clone(),
+			asset_id_from,
+			liquidity_asset_id_from,
+			50u128,
+			50u128
+		));
+
+		//create pool_to
+		assert_ok!(Dex::create_pool(
+			sender.clone(),
+			asset_id_to,
+			liquidity_asset_id_to,
+			50u128,
+			50u128
+		));
+
+		//get the pool_from
+		let pool_from = Dex::pools(asset_id_from).unwrap_or_default();
+
+		//get the pool_to
+		let pool_to = Dex::pools(asset_id_to).unwrap_or_default();
+
+		//middle calculation
+		let curency_amount_middle = Dex::get_input_convert(
+			20u128,
+			pool_from.asset_reserve.clone(),
+			pool_from.currency_reserve.clone(),
+		)
+		.unwrap_or_default();
+
+		let asset_final_amount = Dex::get_input_convert(
+			curency_amount_middle,
+			pool_to.currency_reserve.clone(),
+			pool_to.asset_reserve.clone(),
+		)
+		.unwrap_or_default();
+
+		let previous_balance_from =
+			<Test as crate::Config>::Fungibles::balance(asset_id_from, &account_id);
+		let previous_balance_to =
+			<Test as crate::Config>::Fungibles::balance(asset_id_to, &account_id);
+
+		//perform the asset to asset swap operation
+		assert_ok!(Dex::asset_to_asset(sender.clone(), asset_id_from, asset_id_to, 20u128));
+
+		//verify new sender's asset_from balance
+		assert_eq!(
+			<Test as crate::Config>::Fungibles::balance(asset_id_from, &account_id),
+			previous_balance_from - 20u128
+		);
+
+		//verify new sender's asset_to balance
+		assert_eq!(
+			<Test as crate::Config>::Fungibles::balance(asset_id_to, &account_id),
+			previous_balance_to + asset_final_amount
+		);
+
+		//check the last event
+		System::assert_last_event(
+			Event::AssetToAsset {
+				sender: account_id,
+				asset_id_from,
+				asset_id_to,
+				asset_amount: 20u128,
+				asset_amount_received: asset_final_amount,
+			}
+			.into(),
+		);
+	})
+}
+
+#[test]
+fn asset_to_asset_fails_asset_from_not_found() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		let asset_id_from = 3u32;
+		let asset_id_to = 5u32;
+		let account_id = 1u64;
+
+		//create a sender
+		let sender = RuntimeOrigin::signed(account_id);
+
+		//fails to swap asset for an asset because asset_id_from does not exist
+		assert_noop!(
+			Dex::asset_to_asset(sender, asset_id_from, asset_id_to, 19u128),
+			Error::<Test>::AssetNotFound
+		);
+	})
+}
+
+#[test]
+fn asset_to_asset_fails_asset_to_not_found() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		let asset_id_from = 3u32;
+		let asset_id_to = 5u32;
+		let account_id = 1u64;
+
+		//create a sender
+		let sender = RuntimeOrigin::signed(account_id);
+
+		//create the asset_from
+		assert_ok!(Dex::create_asset_helper(asset_id_from));
+
+		//fails to swap asset for an asset because asset_id_to does not exist
+		assert_noop!(
+			Dex::asset_to_asset(sender, asset_id_from, asset_id_to, 19u128),
+			Error::<Test>::AssetNotFound
+		);
+	})
+}
+
+#[test]
+fn asset_to_asset_fails_pool_from_not_found() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		let asset_id_from = 3u32;
+		let asset_id_to = 5u32;
+		let account_id = 1u64;
+
+		//create a sender
+		let sender = RuntimeOrigin::signed(account_id);
+
+		//create the asset_from
+		assert_ok!(Dex::create_asset_helper(asset_id_from));
+
+		//create the asset_to
+		assert_ok!(Dex::create_asset_helper(asset_id_to));
+
+		//fails to swap asset for an asset because pool_from does not exist
+		assert_noop!(
+			Dex::asset_to_asset(sender, asset_id_from, asset_id_to, 19u128),
+			Error::<Test>::PoolNotFound
+		);
+	})
+}
+
+#[test]
+fn asset_to_asset_fails_pool_to_not_found() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		let asset_id_from = 3u32;
+		let asset_id_to = 5u32;
+		let account_id = 1u64;
+
+		//create a sender
+		let sender = RuntimeOrigin::signed(account_id);
+
+		//transfer currency to the sender
+		let _ = <Test as crate::Config>::Currency::deposit_creating(&account_id, 300u128);
+
+		//create the asset_from
+		assert_ok!(Dex::create_asset_helper(asset_id_from));
+
+		//create the asset_to
+		assert_ok!(Dex::create_asset_helper(asset_id_to));
+
+		//mint asset_from to sender
+		assert!(<Test as crate::Config>::Fungibles::mint_into(asset_id_from, &account_id, 300u128)
+			.is_ok());
+		
+		//create pool_from
+		assert_ok!(Dex::create_pool(
+			sender.clone(),
+			asset_id_from,
+			8u32,
+			50u128,
+			50u128
+		));
+
+		//fails to swap asset for an asset because pool_to does not exist
+		assert_noop!(
+			Dex::asset_to_asset(sender, asset_id_from, asset_id_to, 19u128),
+			Error::<Test>::PoolNotFound
+		);
+	})
+}
+
+#[test]
+fn asset_to_asset_fails_asset_amount_zero() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		let asset_id_from = 3u32;
+		let asset_id_to = 5u32;
+		let account_id = 1u64;
+
+		//create a sender
+		let sender = RuntimeOrigin::signed(account_id);
+
+		//fails to swap asset for an asset because asset_amount is zero
+		assert_noop!(
+			Dex::asset_to_asset(sender, asset_id_from, asset_id_to, 0u128),
+			Error::<Test>::AssetAmountZero
+		);
+	})
+}
