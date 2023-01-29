@@ -260,7 +260,7 @@ fn add_liquidity_successfully() {
 		// asset_reserve
 		let asset_amount_to_add = ((10u128 / 50u128) * 50u128) + 1;
 
-		//check that the new liquidity asset amount to add is (currency_amount/ currency_reserve)
+		//check that the new liquidity asset amount to mint is (currency_amount/ currency_reserve)
 		// *asset_liq_total_issuance
 		let liquidity_assets_to_add = (10u128 / 50u128) * 50u128;
 
@@ -544,7 +544,7 @@ fn currency_to_asset_fails_pool_not_found() {
 }
 
 #[test]
-fn currency_to_asset_fails_currency_amount_zerod() {
+fn currency_to_asset_fails_currency_amount_zero() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 

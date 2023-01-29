@@ -56,7 +56,7 @@ pub mod pallet {
 			+ ReservableCurrency<Self::AccountId>
 			+ LockableCurrency<Self::AccountId>;
 
-		/// Type for tokens
+		/// Type for assets
 		type Fungibles: fungibles::Inspect<
 				Self::AccountId,
 				AssetId = Self::AssetId,
@@ -106,25 +106,43 @@ pub mod pallet {
 
 	type PoolOf<T> = Pool<AssetIdOf<T>, BalanceOf<T>>;
 
-	//pool type for genesis config
-	//type PoolData<T> = (AccountIdOf<T>, AssetIdOf<T>, AssetIdOf<T>, BalanceOf<T>, BalanceOf<T>);
-
-	/* #[pallet::genesis_config]
+	#[pallet::genesis_config]
 	pub struct GenesisConfig<T: Config> {
-		pub exchanges: Vec<PoolData<T>>,
+		pub assets: Vec<AssetIdOf<T>>,
+		pub initial_amount: BalanceOf<T>
 	}
 
 	#[cfg(feature = "std")]
 	impl<T: Config> Default for GenesisConfig<T> {
 		fn default() -> GenesisConfig<T> {
-			GenesisConfig { exchanges: vec![] }
+			GenesisConfig { assets: vec![] , initial_amount: <BalanceOf<T>>::one()}
 		}
 	}
 
 	#[pallet::genesis_build]
 	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
-		fn build(&self) {}
-	} */
+		fn build(&self) {
+
+			for i in &self.assets {
+				assert!(
+                    T::Fungibles::create(
+                        i.clone(),
+                        T::PalletId::get().into_account_truncating(),
+                        false,
+                        self.initial_amount
+                    )
+                    .is_ok(),
+                    "Failed creating initial asset"
+                );
+			}
+
+			//deposit currency into pallet's account
+			T::Currency::deposit_creating(
+				&T::PalletId::get().into_account_truncating(),
+				self.initial_amount
+			);
+		}
+	}
 
 	//pallet storage
 	#[pallet::storage]
@@ -243,15 +261,13 @@ pub mod pallet {
 
 			//verify that liquidity asset_id does not exists
 			ensure!(
-				// exists instead
 				!(T::Fungibles::asset_exists(liquidity_asset_id.clone())),
 				Error::<T>::AssetAlreadyExists
 			);
 
 			//verify that the asset_id is created
 			ensure!(
-				// exists again
-				!(T::Fungibles::total_issuance(asset_id.clone()).is_zero()),
+				T::Fungibles::asset_exists(asset_id.clone()),
 				Error::<T>::AssetNotFound
 			);
 
@@ -405,7 +421,6 @@ pub mod pallet {
 
 			//verify the asset exists
 			ensure!(
-				// exists instead
 				(T::Fungibles::asset_exists(asset_id.clone())),
 				Error::<T>::AssetNotFound
 			);
@@ -419,13 +434,6 @@ pub mod pallet {
 				pool.currency_reserve.clone(),
 				pool.asset_reserve.clone(),
 			)?;
-
-			//verify the pool has enough assets
-			//TODO: verify if this is necessary
-			ensure!(
-				pool.asset_reserve.clone().gt(&asset_amount),
-				Error::<T>::InsufficientAssetBalance
-			);
 
 			//transfer currency from sender to pallet
 			T::Currency::transfer(
@@ -494,13 +502,6 @@ pub mod pallet {
 				pool.asset_reserve.clone(),
 				pool.currency_reserve.clone(),
 			)?;
-
-			//verify the pool has enough currency
-			//TODO: check if it is necessary
-			ensure!(
-				pool.currency_reserve.clone().gt(&currency_amount),
-				Error::<T>::InsufficientCurrencyBalance
-			);
 
 			//transfer assets from sender to pallet
 			T::Fungibles::transfer(
@@ -636,6 +637,21 @@ pub mod pallet {
 				asset_amount,
 				asset_amount_received: asset_final_amount,
 			});
+
+			Ok(())
+		}
+
+		#[pallet::call_index(6)]
+		#[pallet::weight(0)]
+		pub fn mint_asset(
+			origin: OriginFor<T>,
+			asset_id: AssetIdOf<T>,
+			asset_amount: BalanceOf<T>
+		) ->DispatchResult{
+
+			let sender = ensure_signed(origin)?;
+
+			T::Fungibles::mint_into(asset_id.clone(), &sender, asset_amount)?;
 
 			Ok(())
 		}
