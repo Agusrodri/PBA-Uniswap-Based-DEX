@@ -301,6 +301,7 @@ pub mod pallet {
 				sender,
 			)?;
 
+			//deposit event
 			Self::deposit_event(Event::PoolCreated { asset_id, liquidity_asset_id });
 
 			Ok(())
@@ -459,7 +460,7 @@ pub mod pallet {
 			//update pool in storage
 			<PoolsMap<T>>::insert(asset_id.clone(), pool);
 
-			//TODO: modify event
+			//deposit event
 			Self::deposit_event(Event::CurrencyToAsset {
 				sender,
 				asset_id,
@@ -527,6 +528,7 @@ pub mod pallet {
 			//update pool in storage
 			<PoolsMap<T>>::insert(asset_id.clone(), pool);
 
+			//deposit event
 			Self::deposit_event(Event::AssetToCurrency {
 				sender,
 				asset_id,
@@ -624,6 +626,7 @@ pub mod pallet {
 			//update pool_to in storage
 			<PoolsMap<T>>::insert(asset_id_to.clone(), pool_to);
 
+			//deposit event
 			Self::deposit_event(Event::AssetToAsset {
 				sender,
 				asset_id_from,
@@ -653,6 +656,9 @@ pub mod pallet {
 	}
 
 	//oracle struct
+	#[derive(
+		Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, MaxEncodedLen, TypeInfo,
+	)]
 	pub struct OraclePrice<AssetId, AssetBalance> {
 		pub asset_id: AssetId,
 		pub asset_amount: AssetBalance,

@@ -1,4 +1,4 @@
-use crate::{mock::*, Error, Event, Pool, PoolsMap};
+use crate::{mock::*, Error, Event, Pool, OraclePrice, PoolsMap};
 use frame_support::{
 	assert_noop, assert_ok,
 	traits::{
@@ -900,5 +900,42 @@ fn asset_to_asset_fails_asset_amount_zero() {
 			Dex::asset_to_asset(sender, asset_id_from, asset_id_to, 0u128),
 			Error::<Test>::AssetAmountZero
 		);
+	})
+}
+
+#[test]
+fn price_oracle_successfully() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		let asset_id = 3u32;
+		let liquidity_asset_id = 2u32;
+		let account_id = 1u64;
+
+		//create a sender
+		let sender = RuntimeOrigin::signed(account_id);
+
+		//transfer currency to the sender
+		let _ = <Test as crate::Config>::Currency::deposit_creating(&account_id, 100u128);
+
+		//create an asset
+		assert_ok!(Dex::create_asset_helper(asset_id));
+
+		//mint asset to user
+		assert!(
+			<Test as crate::Config>::Fungibles::mint_into(asset_id, &account_id, 100u128).is_ok()
+		);
+
+		//create a pool and add liquidity to it
+		assert_ok!(Dex::create_pool(sender, asset_id, liquidity_asset_id, 50u128, 50u128));
+
+		let expected_oracle = OraclePrice {
+			asset_id,
+			asset_amount: 1,
+			currency_amount: 1
+		};
+
+		//verify the oracle's behaviour is correct
+		assert_eq!(Dex::price_oracle(asset_id).unwrap_or_default(), expected_oracle);
 	})
 }
