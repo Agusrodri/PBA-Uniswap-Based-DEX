@@ -87,6 +87,7 @@ pub mod pallet {
 		#[pallet::constant]
 		type PalletId: Get<PalletId>;
 
+		//types to manage the percentage fee
 		#[pallet::constant]
 		type Thousand: Get<BalanceOf<Self>>;
 
