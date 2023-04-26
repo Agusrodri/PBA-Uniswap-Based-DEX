@@ -1,11 +1,11 @@
 
-## Assignment N°3 - Uniswap based DEX
+## Assignment N°3 - Uniswap based DEX (Polkadot Blockchain Academy - Buenos Aires 2023)
 
 
 ### Introduction
 
 
-For this assignment, I decided to build a descentralized Uniswap v1 based exchange. Making use of this DEX, users have the possibility of `creating exchange pools` of type **Asset-Currency**, `adding liquidity` to an existing pool to get future rewards, `removing liquidity` from a pool they are liquidity providers, or just `swapping currency` to assets (or assets to currency and to other assets) as they like.
+For this assignment, I decided to build a decentralized Uniswap v1 based exchange. Making use of this DEX, users have the possibility of `creating exchange pools` of type **Asset-Currency**, `adding liquidity` to an existing pool to get future rewards, `removing liquidity` from a pool they are liquidity providers, or just `swapping currency` to assets (or assets to currency and to other assets) as they like.
 
 
 ### Main terminology
