@@ -1,5 +1,7 @@
 
-## Assignment N°3 - Uniswap based DEX (Polkadot Blockchain Academy - Buenos Aires 2023)
+## Assignment N°3 - Uniswap based DEX 
+
+> (Polkadot Blockchain Academy - Buenos Aires 2023)
 
 
 ### Introduction
